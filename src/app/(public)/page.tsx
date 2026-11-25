@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Instagram, MessageCircle } from "lucide-react";
+import { Instagram, LogIn, MessageCircle } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { HomeMenuList, type HomeMenu } from "@/components/public/home-menu";
 import { createClient } from "@/lib/supabase/server";
@@ -21,7 +21,9 @@ export default async function HomePage() {
     supabase.from("banners").select("id,title,description,image_path,button_label,target_url").eq("is_active", true).or(`starts_at.is.null,starts_at.lte.${new Date().toISOString()}`).or(`ends_at.is.null,ends_at.gte.${new Date().toISOString()}`).order("sort_order"),
     supabase.from("site_settings").select("key,value"),
   ]) : [{ data: null, error: null }, { data: null, error: null }, { data: null, error: null }];
-  const menus = menuResult.data?.length ? menuResult.data : fallbackMenus;
+  const defaultTargets = new Set(fallbackMenus.map((menu) => menu.target_url));
+  const customMenus = (menuResult.data ?? []).filter((menu) => !defaultTargets.has(menu.target_url));
+  const menus = [...fallbackMenus, ...customMenus];
   const banners = (bannerResult.data ?? []) as Banner[];
   const settings = Object.fromEntries((settingResult.data ?? []).map((row) => [row.key, typeof row.value === "string" ? row.value : String(row.value ?? "")]));
   const assetBase = supabase?.storage.from("public-assets").getPublicUrl("").data.publicUrl ?? "";
@@ -32,7 +34,7 @@ export default async function HomePage() {
     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(170,28,105,.22),transparent_35%),radial-gradient(circle_at_90%_70%,rgba(245,181,96,.12),transparent_30%)]" />
     <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full border-[42px] border-pink-600/10 blur-sm" />
     <section className="relative mx-auto flex min-h-screen max-w-4xl flex-col items-center py-8">
-      <header className="flex w-full items-center justify-between"><Brand dark name={siteName.toUpperCase()} tagline={tagline} /><span className="rounded-full border border-pink-300/20 px-3 py-1.5 text-[10px] tracking-[.2em] text-pink-200">EST. WITH CARE</span></header>
+      <header className="flex w-full items-center justify-between gap-3"><Brand dark name={siteName.toUpperCase()} tagline={tagline} /><div className="flex items-center gap-2"><span className="hidden rounded-full border border-pink-300/20 px-3 py-1.5 text-[10px] tracking-[.2em] text-pink-200 sm:inline-flex">EST. WITH CARE</span><Link href="/login" className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-xs font-bold text-[#28131e] shadow-[0_8px_28px_rgba(255,79,145,.16)] transition hover:-translate-y-0.5 hover:bg-pink-50"><LogIn size={15} /> Login</Link></div></header>
       <div className="relative mb-7 mt-10 text-center sm:mt-14">
         <div className="bloom mx-auto mb-6 grid size-28 place-items-center rounded-full bg-[radial-gradient(circle_at_40%_35%,#ffd0d9,#ee4c91_42%,#5e173d_75%,transparent_76%)] shadow-[0_0_70px_rgba(244,60,136,.32)]"><span className="display text-5xl italic text-white/90">{siteName.charAt(0).toUpperCase()}</span></div>
         <p className="mb-3 text-[10px] uppercase tracking-[.52em] text-[#d9a4b9]">{siteName} reseller space</p>
