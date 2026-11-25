@@ -1,7 +1,8 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export async function requireUser(expectedRole?: "admin" | "reseller") {
+export const requireUser = cache(async function requireUser(expectedRole?: "admin" | "reseller") {
   const supabase = await createClient();
   if (!supabase) redirect("/login?error=config");
 
@@ -19,4 +20,4 @@ export async function requireUser(expectedRole?: "admin" | "reseller") {
     redirect(profile.role === "admin" ? "/admin" : "/dashboard");
   }
   return { supabase, user, profile };
-}
+});

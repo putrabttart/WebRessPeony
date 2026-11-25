@@ -1,16 +1,19 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { AlertCircle, CalendarDays, CheckCircle2, Clock3, LoaderCircle, Mail, MessageCircle, Send, UserRound } from "lucide-react";
+import { AlertCircle, CalendarDays, CheckCircle2, ChevronDown, Clock3, ExternalLink, FileImage, LoaderCircle, Mail, MessageCircle, Send, UserRound } from "lucide-react";
 import { updateWarranty, type WarrantyActionState } from "@/app/admin/actions";
 
 type Response = { id: string; response: string | null; old_status: string | null; new_status: string | null; created_at: string };
+type Attachment = { id: string; file_path: string; file_name: string | null; mime_type: string | null; created_at: string; signed_url?: string };
 export type Warranty = {
   id: string; claim_code: string; application: string; status: string; problem_description: string;
   order_date: string; report_date: string; account_email: string | null;
+  account_duration_value: number | null; account_duration_unit: string | null; expires_at: string | null;
   remaining_duration_value: number | null; remaining_duration_unit: string | null;
   profiles: { full_name: string; phone: string | null } | null;
   warranty_responses: Response[];
+  warranty_attachments: Attachment[];
 };
 
 const statusMeta: Record<string, { label: string; className: string; step: number }> = {
@@ -27,6 +30,7 @@ export function WarrantyCard({ claim }: { claim: Warranty }) {
   const [state, action, pending] = useActionState(updateWarranty, initialState);
   const [selectedStatus, setSelectedStatus] = useState(claim.status);
   const [responseText, setResponseText] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const visibleStatus = state.success && state.status ? state.status : selectedStatus;
   const meta = statusMeta[visibleStatus];
   const responses = [...(claim.warranty_responses ?? [])].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
@@ -41,25 +45,23 @@ export function WarrantyCard({ claim }: { claim: Warranty }) {
   }, [state.success, state.savedAt]);
 
   return <article className="card overflow-hidden">
-    <div className="border-b border-gray-100 bg-gradient-to-r from-[#21121a] to-[#42152d] p-5 text-white sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-pink-300">{claim.claim_code}</p><h2 className="display mt-1 text-2xl">{claim.application}</h2><p className="mt-2 flex items-center gap-2 text-xs text-pink-100/70"><UserRound size={14} /> {claim.profiles?.full_name ?? "Reseller"}</p></div>
-        <span className={`rounded-full px-3 py-1.5 text-xs font-bold ring-1 ${meta.className}`}>{meta.label}</span>
-      </div>
-      <div className="mt-5 grid grid-cols-4 gap-1" aria-label={`Tahap ${meta.step} dari 4`}>
-        {[1, 2, 3, 4].map((step) => <span key={step} className={`h-1.5 rounded-full ${step <= meta.step ? "bg-pink-400" : "bg-white/15"}`} />)}
-      </div>
-    </div>
+    <button type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)} className="flex w-full items-center gap-4 bg-white p-4 text-left transition hover:bg-pink-50/40 sm:p-5">
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#21121a] text-pink-300"><FileImage size={18} /></span><span className="min-w-0 flex-1"><span className="block text-[10px] font-bold uppercase tracking-[.15em] text-pink-500">{claim.claim_code}</span><strong className="mt-1 block truncate text-sm">{claim.application} · {claim.profiles?.full_name ?? "Reseller"}</strong><small className="mt-1 block text-gray-400">Dilaporkan {formatDate(claim.report_date)} · {claim.warranty_attachments.length} bukti</small></span><span className={`hidden rounded-full px-3 py-1.5 text-xs font-bold ring-1 sm:block ${meta.className}`}>{meta.label}</span><ChevronDown className={`shrink-0 text-gray-400 transition ${expanded ? "rotate-180" : ""}`} size={19} />
+    </button>
+    {expanded && <><div className="border-y border-gray-100 bg-gradient-to-r from-[#21121a] to-[#42152d] px-5 py-3 text-white"><div className="grid grid-cols-4 gap-1" aria-label={`Tahap ${meta.step} dari 4`}>{[1, 2, 3, 4].map((step) => <span key={step} className={`h-1.5 rounded-full ${step <= meta.step ? "bg-pink-400" : "bg-white/15"}`} />)}</div></div>
 
     <div className="grid gap-6 p-5 sm:p-6 xl:grid-cols-[1fr_380px]">
       <div>
         <div className="grid gap-3 text-sm sm:grid-cols-2">
           <Info icon={<CalendarDays size={15} />} label="Tanggal order" value={formatDate(claim.order_date)} />
           <Info icon={<Clock3 size={15} />} label="Tanggal laporan" value={formatDate(claim.report_date)} />
+          <Info icon={<Clock3 size={15} />} label="Durasi akun" value={claim.account_duration_value ? `${claim.account_duration_value} ${claim.account_duration_unit}` : "Tidak dicantumkan"} />
+          <Info icon={<CalendarDays size={15} />} label="Tanggal expired" value={claim.expires_at ? formatDate(claim.expires_at) : "Tidak dicantumkan"} />
           <Info icon={<Mail size={15} />} label="Data akun" value={claim.account_email || "Tidak dicantumkan"} />
           <Info icon={<UserRound size={15} />} label="Nama reseller" value={claim.profiles?.full_name ?? "Reseller"} />
         </div>
         <section className="mt-5 rounded-2xl bg-[#faf7f8] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Kendala reseller</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">{claim.problem_description}</p></section>
+        <section className="mt-5"><h3 className="font-bold">Screenshot bukti kendala</h3>{claim.warranty_attachments.length ? <div className="mt-3 grid gap-3 sm:grid-cols-2">{claim.warranty_attachments.map((attachment) => <article className="overflow-hidden rounded-xl border" key={attachment.id}>{attachment.signed_url ? <a href={attachment.signed_url} target="_blank" rel="noreferrer" className="group relative block h-48 bg-gray-100"><img src={attachment.signed_url} alt={attachment.file_name ?? "Bukti kendala"} className="size-full object-cover" /><span className="absolute bottom-3 right-3 grid size-9 place-items-center rounded-full bg-black/65 text-white"><ExternalLink size={16} /></span></a> : <div className="grid h-48 place-items-center bg-gray-50 text-gray-300"><FileImage size={38} /></div>}<p className="truncate p-3 text-xs font-semibold">{attachment.file_name ?? "Bukti kendala"}</p></article>)}</div> : <p className="mt-3 rounded-xl border border-dashed p-4 text-xs text-gray-400">Belum ada screenshot bukti.</p>}</section>
 
         <section className="mt-6"><div className="flex items-center justify-between"><h3 className="font-bold">Riwayat proses</h3><span className="text-xs text-gray-400">{responses.length} pembaruan</span></div>
           <div className="mt-3 space-y-3">
@@ -81,7 +83,7 @@ export function WarrantyCard({ claim }: { claim: Warranty }) {
         {state.success && state.whatsappUrl && <a className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#20bd5a]" href={state.whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={18} /> Kirim update ke WhatsApp</a>}
         {state.success && !state.whatsappUrl && <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">Nomor WhatsApp reseller belum tersedia. Update tetap tersimpan di dashboard.</p>}
       </form>
-    </div>
+    </div></>}
   </article>;
 }
 
