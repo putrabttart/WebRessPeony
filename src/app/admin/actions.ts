@@ -27,12 +27,15 @@ function validTarget(value: string | null, allowEmpty = true) {
 export async function toggleReseller(form: FormData) {
   const id = z.string().uuid().parse(form.get("id"));
   const active = form.get("active") === "true";
+  const requestedReturnTo = String(form.get("return_to") ?? "/admin/resellers");
+  const returnTo = requestedReturnTo === `/admin/resellers/${id}` ? requestedReturnTo : "/admin/resellers";
   const { supabase, profile } = await requireUser("admin");
   const { error } = await supabase.from("profiles").update({ is_active: !active }).eq("id", id).eq("role", "reseller");
-  if (error) redirect("/admin/resellers?error=status");
+  if (error) redirect(`${returnTo}?error=status`);
   await log(supabase, profile.id, active ? "deactivate" : "activate", "profile", id);
   revalidatePath("/admin/resellers");
-  redirect("/admin/resellers?saved=status");
+  revalidatePath(`/admin/resellers/${id}`);
+  redirect(`${returnTo}?saved=status`);
 }
 
 export async function saveProduct(form: FormData) {
