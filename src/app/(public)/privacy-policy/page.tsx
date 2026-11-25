@@ -1,0 +1,2 @@
+import { AuthShell } from "@/components/public/auth-shell";
+export default function PrivacyPage() { return <AuthShell eyebrow="Dokumen" title="Kebijakan privasi"><p className="leading-7 text-gray-600">Peony menggunakan data pendaftaran untuk pengelolaan reseller, akses katalog, dan penanganan laporan garansi. Bukti pendaftaran dan lampiran garansi disimpan secara privat. Kami tidak meminta password atau PIN akun aplikasi dalam laporan garansi.</p></AuthShell>; }

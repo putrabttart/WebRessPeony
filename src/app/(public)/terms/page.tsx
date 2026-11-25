@@ -1,0 +1,2 @@
+import { AuthShell } from "@/components/public/auth-shell";
+export default function TermsPage() { return <AuthShell eyebrow="Dokumen" title="Ketentuan penggunaan"><p className="leading-7 text-gray-600">Reseller wajib memberikan data yang benar, menjaga keamanan akun, mengikuti ketentuan harga Peony, dan tidak mengunggah materi yang melanggar hak pihak lain. Ketentuan operasional lebih rinci dapat diperbarui oleh pengelola Peony.</p></AuthShell>; }

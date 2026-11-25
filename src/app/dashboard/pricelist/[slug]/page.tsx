@@ -1,0 +1,5 @@
+import { notFound } from "next/navigation";
+import { PackageOpen } from "lucide-react";
+import { requireUser } from "@/lib/auth";
+import { formatRupiah } from "@/lib/utils";
+export default async function ProductPage({params}:{params:Promise<{slug:string}>}) { const {slug}=await params; const {supabase}=await requireUser("reseller"); const {data:p}=await supabase.from("products").select("name,description,reseller_price,product_categories(name)").eq("slug",slug).eq("is_active",true).single(); if(!p)notFound(); return <div className="card mx-auto max-w-3xl overflow-hidden"><div className="grid h-64 place-items-center bg-gradient-to-br from-pink-50 to-amber-50 text-pink-300"><PackageOpen size={70}/></div><div className="p-7"><small className="font-bold uppercase text-pink-500">{(p.product_categories as any)?.name}</small><h1 className="display mt-2 text-4xl">{p.name}</h1><p className="mt-5 leading-7 text-gray-600">{p.description||"Deskripsi produk belum tersedia."}</p><p className="mt-7 text-2xl font-bold text-pink-700">{formatRupiah(Number(p.reseller_price))}</p></div></div> }

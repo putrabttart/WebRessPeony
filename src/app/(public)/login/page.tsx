@@ -1,0 +1,8 @@
+import Link from "next/link";
+import { AuthShell } from "@/components/public/auth-shell";
+import { FormAlert } from "@/components/ui/form-alert";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { login } from "../actions";
+
+const errors: Record<string,string> = { invalid: "Periksa kembali email dan password.", credentials: "Email atau password tidak valid.", inactive: "Akun Anda sedang dinonaktifkan. Hubungi admin.", config: "Layanan autentikasi belum dikonfigurasi." };
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; registered?: string }> }) { const params = await searchParams; return <AuthShell eyebrow="Ruang reseller" title="Selamat datang kembali"><form action={login} className="space-y-5">{params.error && <FormAlert type="error">{errors[params.error] ?? errors.invalid}</FormAlert>}{params.registered && <FormAlert type="success">Pendaftaran berhasil. Silakan masuk menggunakan akun yang baru dibuat.</FormAlert>}<label><span className="label">Email *</span><input className="field" name="email" type="email" autoComplete="email" required/></label><label><span className="label">Password *</span><input className="field" name="password" type="password" autoComplete="current-password" minLength={8} required/></label><div className="text-right"><Link className="text-xs font-bold text-pink-600" href="/forgot-password">Lupa password?</Link></div><SubmitButton className="btn-primary w-full" pendingText="Memeriksa akun...">Masuk</SubmitButton></form><p className="mt-6 text-center text-sm text-gray-500">Belum bergabung? <Link className="font-bold text-pink-600" href="/register">Daftar reseller</Link></p></AuthShell>; }
