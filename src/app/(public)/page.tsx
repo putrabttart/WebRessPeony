@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Instagram, LogIn, MessageCircle } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { HomeMenuList, type HomeMenu } from "@/components/public/home-menu";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import { safeTarget } from "@/lib/utils";
 
 const fallbackMenus: HomeMenu[] = [
@@ -14,8 +14,10 @@ const fallbackMenus: HomeMenu[] = [
 
 type Banner = { id: string; title: string | null; description: string | null; image_path: string; button_label: string | null; target_url: string | null };
 
+export const revalidate = 300;
+
 export default async function HomePage() {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const [menuResult, bannerResult, settingResult] = supabase ? await Promise.all([
     supabase.from("menus").select("id,title,description,icon,target_url,action_type").eq("is_active", true).order("sort_order"),
     supabase.from("banners").select("id,title,description,image_path,button_label,target_url").eq("is_active", true).or(`starts_at.is.null,starts_at.lte.${new Date().toISOString()}`).or(`ends_at.is.null,ends_at.gte.${new Date().toISOString()}`).order("sort_order"),
@@ -42,7 +44,7 @@ export default async function HomePage() {
         <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#ab9aa2]">{settings.hero_description || "Semua yang reseller butuhkan dalam satu ruang yang tertata, aman, dan penuh perhatian."}</p>
       </div>
       {banners.length > 0 && <div className="mb-6 grid w-full max-w-2xl gap-4">{banners.map((banner) => <article key={banner.id} className="relative min-h-48 overflow-hidden rounded-[24px] border border-pink-300/30 bg-[#21121a]">
-        <img className="absolute inset-0 size-full object-cover opacity-55" src={`${assetBase}${banner.image_path}`} alt={banner.title || "Banner Peony"} />
+        <img loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover opacity-55" src={`${assetBase}${banner.image_path}`} alt={banner.title || "Banner Peony"} />
         <div className="relative flex min-h-48 flex-col justify-end bg-gradient-to-t from-black/85 via-black/25 to-transparent p-6"><h2 className="display text-2xl">{banner.title}</h2>{banner.description && <p className="mt-1 max-w-md text-sm text-gray-200">{banner.description}</p>}{banner.button_label && banner.target_url && <Link className="mt-4 w-fit rounded-full bg-white px-4 py-2 text-xs font-bold text-black" href={safeTarget(banner.target_url)}>{banner.button_label}</Link>}</div>
       </article>)}</div>}
       <HomeMenuList menus={menus} />

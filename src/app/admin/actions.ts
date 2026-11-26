@@ -24,18 +24,19 @@ function validTarget(value: string | null, allowEmpty = true) {
   }
 }
 
-export async function toggleReseller(form: FormData) {
-  const id = z.string().uuid().parse(form.get("id"));
+export type ResellerStatusState = { success: boolean; message: string; active?: boolean };
+
+export async function toggleReseller(_previousState: ResellerStatusState, form: FormData): Promise<ResellerStatusState> {
+  const id = z.string().uuid().safeParse(form.get("id"));
   const active = form.get("active") === "true";
-  const requestedReturnTo = String(form.get("return_to") ?? "/admin/resellers");
-  const returnTo = requestedReturnTo === `/admin/resellers/${id}` ? requestedReturnTo : "/admin/resellers";
+  if (!id.success) return { success: false, message: "Data reseller tidak valid." };
   const { supabase, profile } = await requireUser("admin");
-  const { error } = await supabase.from("profiles").update({ is_active: !active }).eq("id", id).eq("role", "reseller");
-  if (error) redirect(`${returnTo}?error=status`);
-  await log(supabase, profile.id, active ? "deactivate" : "activate", "profile", id);
+  const { error } = await supabase.from("profiles").update({ is_active: !active }).eq("id", id.data).eq("role", "reseller");
+  if (error) return { success: false, message: "Status gagal diperbarui. Coba kembali.", active };
+  await log(supabase, profile.id, active ? "deactivate" : "activate", "profile", id.data);
   revalidatePath("/admin/resellers");
-  revalidatePath(`/admin/resellers/${id}`);
-  redirect(`${returnTo}?saved=status`);
+  revalidatePath(`/admin/resellers/${id.data}`);
+  return { success: true, message: !active ? "Reseller diaktifkan" : "Reseller dinonaktifkan", active: !active };
 }
 
 export async function saveProduct(form: FormData) {

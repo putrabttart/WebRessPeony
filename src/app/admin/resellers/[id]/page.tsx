@@ -2,10 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, ExternalLink, FileImage, Instagram, Mail, MessageCircle, ShieldCheck, UserRound } from "lucide-react";
 import { FormAlert } from "@/components/ui/form-alert";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { ResellerStatusToggle } from "@/components/admin/reseller-status-toggle";
 import { requireUser } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
-import { toggleReseller } from "../../actions";
 
 type Evidence = { id: string; file_path: string | null; external_url: string | null; description: string | null; evidence_date: string | null; created_at: string };
 type Pricelist = { id: string; file_path: string | null; external_url: string | null; created_at: string };
@@ -41,7 +40,7 @@ export default async function ResellerDetail({ params, searchParams }: { params:
         <EvidenceSection title="Bukti testimoni" description="Bukti testimoni yang diunggah saat pendaftaran." items={testimonials.map((item, index) => ({ id: item.id, label: `Testimoni ${index + 1}`, date: item.evidence_date || item.created_at, url: item.file_path ? signedUrls.get(item.file_path) : item.external_url }))} />
         <EvidenceSection title="Link pricelist" description="Bukti bahwa reseller tidak melakukan underprice." items={pricelists.map((item, index) => ({ id: item.id, label: `Pricelist ${index + 1}`, date: item.created_at, url: item.external_url || (item.file_path ? signedUrls.get(item.file_path) : undefined) }))} />
       </div>
-      <aside className="space-y-5"><section className="card p-5"><h2 className="font-bold">Tindakan akun</h2><p className="mt-2 text-xs leading-5 text-gray-500">Menonaktifkan akun akan menghentikan akses reseller ke dashboard.</p><form action={toggleReseller} className="mt-4"><input type="hidden" name="id" value={reseller.id} /><input type="hidden" name="active" value={String(reseller.is_active)} /><input type="hidden" name="return_to" value={`/admin/resellers/${reseller.id}`} /><SubmitButton className={`w-full rounded-full px-4 py-3 text-sm font-bold ${reseller.is_active ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`} pendingText="Memproses status...">{reseller.is_active ? "Nonaktifkan reseller" : "Aktifkan reseller"}</SubmitButton></form></section><FormAlert type="info">Tautan bukti bersifat privat dan hanya aktif selama 15 menit. Muat ulang halaman untuk membuat tautan baru.</FormAlert></aside>
+      <aside className="space-y-5"><section className="card p-5"><h2 className="font-bold">Status akun</h2><p className="mt-2 text-xs leading-5 text-gray-500">Nonaktifkan toggle untuk menghentikan akses reseller ke dashboard.</p><div className="mt-4 rounded-xl bg-gray-50 p-4"><ResellerStatusToggle id={reseller.id} active={reseller.is_active} returnTo={`/admin/resellers/${reseller.id}`} /></div></section><FormAlert type="info">Tautan bukti bersifat privat dan hanya aktif selama 15 menit. Muat ulang halaman untuk membuat tautan baru.</FormAlert></aside>
     </div>
   </>;
 }

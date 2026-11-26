@@ -34,6 +34,9 @@ export function WarrantyCard({ claim }: { claim: Warranty }) {
   const [responseText, setResponseText] = useState("");
   const [handler, setHandler] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const [evidenceUrls, setEvidenceUrls] = useState<Record<string, string | null>>({});
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [evidenceError, setEvidenceError] = useState("");
   const visibleStatus = state.success && state.status ? state.status : selectedStatus;
   const meta = statusMeta[visibleStatus];
   const responses = [...(claim.warranty_responses ?? [])].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
@@ -47,8 +50,20 @@ export function WarrantyCard({ claim }: { claim: Warranty }) {
     if (state.success) setResponseText("");
   }, [state.success, state.savedAt]);
 
+  async function toggleDetails() {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && claim.warranty_attachments.length && !Object.keys(evidenceUrls).length) {
+      setEvidenceLoading(true); setEvidenceError("");
+      const response = await fetch(`/api/admin/warranty-evidence?claimId=${claim.id}`);
+      const result = await response.json().catch(() => ({ error: "Bukti tidak dapat dimuat." }));
+      if (response.ok) setEvidenceUrls(result.urls ?? {}); else setEvidenceError(result.error);
+      setEvidenceLoading(false);
+    }
+  }
+
   return <article className="card overflow-hidden">
-    <button type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)} className="flex w-full items-center gap-4 bg-white p-4 text-left transition hover:bg-pink-50/40 sm:p-5">
+    <button type="button" aria-expanded={expanded} onClick={toggleDetails} className="flex w-full items-center gap-4 bg-white p-4 text-left transition hover:bg-pink-50/40 sm:p-5">
       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#21121a] text-pink-300"><FileImage size={18} /></span><span className="min-w-0 flex-1"><span className="block text-[10px] font-bold uppercase tracking-[.15em] text-pink-500">{claim.claim_code}</span><strong className="mt-1 block truncate text-sm">{claim.application} · {claim.profiles?.full_name ?? "Reseller"}</strong><small className="mt-1 block text-gray-400">Dilaporkan {formatDate(claim.report_date)} · {claim.warranty_attachments.length} bukti</small></span><span className={`hidden rounded-full px-3 py-1.5 text-xs font-bold ring-1 sm:block ${meta.className}`}>{meta.label}</span><ChevronDown className={`shrink-0 text-gray-400 transition ${expanded ? "rotate-180" : ""}`} size={19} />
     </button>
     {expanded && <><div className="border-y border-gray-100 bg-gradient-to-r from-[#21121a] to-[#42152d] px-5 py-3 text-white"><div className="grid grid-cols-4 gap-1" aria-label={`Tahap ${meta.step} dari 4`}>{[1, 2, 3, 4].map((step) => <span key={step} className={`h-1.5 rounded-full ${step <= meta.step ? "bg-pink-400" : "bg-white/15"}`} />)}</div></div>
@@ -64,7 +79,7 @@ export function WarrantyCard({ claim }: { claim: Warranty }) {
           <Info icon={<UserRound size={15} />} label="Nama reseller" value={claim.profiles?.full_name ?? "Reseller"} />
         </div>
         <section className="mt-5 rounded-2xl bg-[#faf7f8] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Kendala reseller</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">{claim.problem_description}</p></section>
-        <section className="mt-5"><h3 className="font-bold">Screenshot bukti kendala</h3>{claim.warranty_attachments.length ? <div className="mt-3 grid gap-3 sm:grid-cols-2">{claim.warranty_attachments.map((attachment) => <article className="overflow-hidden rounded-xl border" key={attachment.id}>{attachment.signed_url ? <a href={attachment.signed_url} target="_blank" rel="noreferrer" className="group relative block h-48 bg-gray-100"><img src={attachment.signed_url} alt={attachment.file_name ?? "Bukti kendala"} className="size-full object-cover" /><span className="absolute bottom-3 right-3 grid size-9 place-items-center rounded-full bg-black/65 text-white"><ExternalLink size={16} /></span></a> : <div className="grid h-48 place-items-center bg-gray-50 text-gray-300"><FileImage size={38} /></div>}<p className="truncate p-3 text-xs font-semibold">{attachment.file_name ?? "Bukti kendala"}</p></article>)}</div> : <p className="mt-3 rounded-xl border border-dashed p-4 text-xs text-gray-400">Belum ada screenshot bukti.</p>}</section>
+        <section className="mt-5"><h3 className="font-bold">Screenshot bukti kendala</h3>{evidenceLoading ? <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-gray-50 text-sm text-gray-400"><LoaderCircle className="mr-2 animate-spin" size={17} /> Memuat bukti...</div> : evidenceError ? <p className="mt-3 rounded-xl bg-red-50 p-4 text-xs text-red-700">{evidenceError}</p> : claim.warranty_attachments.length ? <div className="mt-3 grid gap-3 sm:grid-cols-2">{claim.warranty_attachments.map((attachment) => {const url=evidenceUrls[attachment.id];return <article className="overflow-hidden rounded-xl border" key={attachment.id}>{url ? <a href={url} target="_blank" rel="noreferrer" className="group relative block h-48 bg-gray-100"><img loading="lazy" decoding="async" src={url} alt={attachment.file_name ?? "Bukti kendala"} className="size-full object-cover" /><span className="absolute bottom-3 right-3 grid size-9 place-items-center rounded-full bg-black/65 text-white"><ExternalLink size={16} /></span></a> : <div className="grid h-48 place-items-center bg-gray-50 text-gray-300"><FileImage size={38} /></div>}<p className="truncate p-3 text-xs font-semibold">{attachment.file_name ?? "Bukti kendala"}</p></article>})}</div> : <p className="mt-3 rounded-xl border border-dashed p-4 text-xs text-gray-400">Belum ada screenshot bukti.</p>}</section>
 
         <section className="mt-6"><div className="flex items-center justify-between"><h3 className="font-bold">Riwayat proses</h3><span className="text-xs text-gray-400">{responses.length} pembaruan</span></div>
           <div className="mt-3 space-y-3">
