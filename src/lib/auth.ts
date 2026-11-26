@@ -6,18 +6,19 @@ export const requireUser = cache(async function requireUser(expectedRole?: "admi
   const supabase = await createClient();
   if (!supabase) redirect("/login?error=config");
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect(expectedRole === "admin" ? "/admin/login" : "/login");
+  const { data, error: claimsError } = await supabase.auth.getClaims();
+  const userId = data?.claims?.sub;
+  if (claimsError || !userId) redirect(expectedRole === "admin" ? "/admin/login" : "/login");
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, full_name, email, phone, role, is_active")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
 
   if (!profile?.is_active) redirect("/login?error=inactive");
   if (expectedRole && profile.role !== expectedRole) {
     redirect(profile.role === "admin" ? "/admin" : "/dashboard");
   }
-  return { supabase, user, profile };
+  return { supabase, profile };
 });

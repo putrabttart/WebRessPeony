@@ -5,6 +5,11 @@ export async function middleware(request: NextRequest) {
   // A preceding protected-page GET already refreshed the cookie. Avoid a second
   // Auth network call for Server Action POST requests; the action/RPC validates it.
   if (request.method !== "GET" && request.method !== "HEAD") return NextResponse.next({ request });
+  // Pages still validate the user and role. This marker only avoids doing the
+  // same remote token refresh again on every client-side admin navigation.
+  if (request.nextUrl.pathname.startsWith("/admin") && request.cookies.has("peony-auth-refreshed")) {
+    return NextResponse.next({ request });
+  }
   return updateSession(request);
 }
 

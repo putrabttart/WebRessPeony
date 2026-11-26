@@ -20,5 +20,12 @@ export async function updateSession(request: NextRequest) {
 
   // getUser refreshes an expired access token and writes the new cookies.
   await supabase.auth.getUser();
+  response.cookies.set("peony-auth-refreshed", String(Date.now()), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 5 * 60,
+  });
   return response;
 }
