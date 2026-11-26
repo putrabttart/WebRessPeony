@@ -5,8 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 
-async function log(supabase: any, actor: string, action: string, type: string, id?: string) {
-  await supabase.from("admin_activity_logs").insert({ actor_id: actor, action, entity_type: type, entity_id: id });
+async function log(supabase: any, actor: string, action: string, type: string, id?: string, metadata?: Record<string, string | number | boolean | null>) {
+  await supabase.from("admin_activity_logs").insert({ actor_id: actor, action, entity_type: type, entity_id: id, metadata: metadata ?? null });
 }
 
 function optionalText(value: FormDataEntryValue | null) {
@@ -76,6 +76,31 @@ export async function deleteProduct(form: FormData) {
   redirect("/admin/products?saved=deleted");
 }
 
+export async function saveProductPlans(form: FormData) {
+  const productId = z.string().uuid().safeParse(form.get("product_id"));
+  let rawPlans: unknown;
+  try { rawPlans = JSON.parse(String(form.get("plans") ?? "[]")); } catch { redirect("/admin/products?error=plan-invalid"); }
+  const plans = z.array(z.object({ id: z.string().uuid().nullable(), name: z.string().trim().min(2).max(100), description: z.string().trim().min(2).max(3000), reseller_price: z.coerce.number().nonnegative(), sort_order: z.coerce.number().int().min(0).max(9999), is_active: z.boolean() })).max(50).safeParse(rawPlans);
+  if (!productId.success || !plans.success) redirect("/admin/products?error=plan-invalid");
+  const { supabase, profile } = await requireUser("admin");
+  const { data: current, error: readError } = await supabase.from("product_plans").select("id").eq("product_id", productId.data);
+  if (readError) redirect("/admin/products?error=plan-schema");
+  const retainedIds = plans.data.flatMap((plan) => plan.id ? [plan.id] : []);
+  const removedIds = (current ?? []).map((plan) => plan.id).filter((id) => !retainedIds.includes(id));
+  if (removedIds.length) {
+    const { error } = await supabase.from("product_plans").delete().in("id", removedIds).eq("product_id", productId.data);
+    if (error) redirect("/admin/products?error=plan-save");
+  }
+  for (const plan of plans.data) {
+    const payload = { product_id: productId.data, name: plan.name, description: plan.description, reseller_price: plan.reseller_price, sort_order: plan.sort_order, is_active: plan.is_active };
+    const result = plan.id ? await supabase.from("product_plans").update(payload).eq("id", plan.id).eq("product_id", productId.data) : await supabase.from("product_plans").insert(payload);
+    if (result.error) redirect("/admin/products?error=plan-save");
+  }
+  await log(supabase, profile.id, "sync", "product_plans", productId.data);
+  revalidatePath("/admin/products"); revalidatePath("/dashboard/pricelist");
+  redirect("/admin/products?saved=plans-saved");
+}
+
 export async function saveCategory(form: FormData) {
   const data = z.object({ name: z.string().min(2), slug: z.string().regex(/^[a-z0-9-]+$/) }).parse(Object.fromEntries(form));
   const { supabase, profile } = await requireUser("admin");
@@ -93,12 +118,14 @@ export type WarrantyActionState = {
   response?: string;
   savedAt?: string;
   whatsappUrl?: string;
+  handledBy?: string;
 };
 
 export async function updateWarranty(previousState: WarrantyActionState, form: FormData): Promise<WarrantyActionState> {
   const parsed = z.object({
     id: z.string().uuid(),
-    status: z.enum(["submitted", "reviewing", "approved", "rejected", "completed"]),
+    status: z.enum(["reviewing", "processing", "completed", "rejected"]),
+    handled_by_name: z.enum(["Rain", "Cr eld", "Kica", "Ale", "Cheetahily"]),
     response: z.string().trim().max(3000).optional(),
     claim_code: z.string().min(1),
     reseller_name: z.string().min(1),
@@ -119,6 +146,7 @@ export async function updateWarranty(previousState: WarrantyActionState, form: F
   const { error: responseError } = await supabase.from("warranty_responses").insert({
     claim_id: data.id,
     admin_id: profile.id,
+    handled_by_name: data.handled_by_name,
     response: data.response || null,
     old_status: claim.status,
     new_status: data.status,
@@ -128,22 +156,23 @@ export async function updateWarranty(previousState: WarrantyActionState, form: F
     return { success: false, message: "Tanggapan gagal dicatat. Status dikembalikan agar riwayat tetap konsisten." };
   }
 
-  await log(supabase, profile.id, "update_status", "warranty_claim", data.id);
+  await log(supabase, profile.id, "update_status", "warranty_claim", data.id, {
+    handled_by_name: data.handled_by_name,
+    claim_code: data.claim_code,
+    reseller_name: data.reseller_name,
+    old_status: claim.status,
+    new_status: data.status,
+  });
   revalidatePath("/admin/warranties");
   revalidatePath(`/dashboard/garansi/${data.id}`);
   revalidatePath("/dashboard/riwayat-garansi");
 
-  const labels: Record<string, string> = { submitted: "Diterima", reviewing: "Sedang diperiksa", approved: "Disetujui", rejected: "Ditolak", completed: "Selesai" };
+  const labels: Record<string, string> = { reviewing: "Diperiksa", processing: "On Proses", rejected: "Ditolak", completed: "Selesai" };
   const phone = (data.reseller_phone ?? "").replace(/\D/g, "").replace(/^0/, "62").replace(/^620/, "62");
-  const text = [
-    `Halo ${data.reseller_name},`,
-    "",
-    `Update laporan garansi *${data.claim_code}* dari Peony:`,
-    `Status: *${labels[data.status]}*`,
-    data.response ? `Tanggapan: ${data.response}` : null,
-    "",
-    "Silakan cek dashboard reseller untuk melihat riwayat lengkap.",
-  ].filter(Boolean).join("\n");
+  const genericText = [`Admin: ${data.handled_by_name}`, `Halo ${data.reseller_name},`, `Update garansi ${data.claim_code}`, `Status: ${labels[data.status]}`, data.response || null].filter(Boolean).join("\n\n");
+  const processingText = [`Admin: ${data.handled_by_name}`, "", "𖦹 ݁₊  💒 ) ☁️ ——— 𝐠𝐚𝐫𝐚𝐧𝐬𝐢 𝐨𝐧 𝐩𝐫𝐨𝐜𝐞𝐬𝐬  ⊹", "", `✴︎ ⁺ haloo kak  ꔫ  garansi kamu lagi di proses oleh admin ${data.handled_by_name}`, "", "✎ 𓈒 ⏱️ est ⫶ 1x24 jam max 3x24 jam"].join("\n");
+  const completedText = [`Admin: ${data.handled_by_name}`, "", "✴︎ ⁺ haloo kak ꔫ berikut data akun baru kamu yang sudah di replace yaa ✿ ݁˖ coba login dulu 𝜗ৎ ♡ . .", "", data.response || "", "", "ʚ ˚ 🌸 ⊹ ꒰⠀❤️︎ .. 𝐧𝐨𝐭𝐞𝐬⠀꒱ kabari jika ada kendala login yaa kak 𓈈 ♡ 𝑷𝒆𝒐𝒏𝒚𝒓𝒔 ✿✿ ˚⸝⸝ 𓏲 👛 ꕤ"].join("\n");
+  const text = data.status === "processing" ? processingText : data.status === "completed" ? completedText : genericText;
 
   return {
     success: true,
@@ -151,6 +180,7 @@ export async function updateWarranty(previousState: WarrantyActionState, form: F
     status: data.status,
     response: data.response,
     savedAt,
+    handledBy: data.handled_by_name,
     whatsappUrl: phone ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}` : undefined,
   };
 }

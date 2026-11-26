@@ -8,19 +8,19 @@ import { formatDate } from "@/lib/utils";
 import { toggleReseller } from "../../actions";
 
 type Evidence = { id: string; file_path: string | null; external_url: string | null; description: string | null; evidence_date: string | null; created_at: string };
-type Pricelist = { id: string; file_path: string; created_at: string };
+type Pricelist = { id: string; file_path: string | null; external_url: string | null; created_at: string };
 
 export default async function ResellerDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; saved?: string }> }) {
   const { id } = await params;
   const query = await searchParams;
   const { supabase } = await requireUser("admin");
-  const { data: reseller } = await supabase.from("profiles").select("id,full_name,email,phone,is_active,created_at,reseller_details(id,ba_name,ba_start_year,sales_username,created_at,reseller_testimonials(id,file_path,external_url,description,evidence_date,created_at),reseller_pricelists(id,file_path,created_at))").eq("id", id).eq("role", "reseller").single();
+  const { data: reseller } = await supabase.from("profiles").select("id,full_name,email,phone,is_active,created_at,reseller_details(id,ba_name,ba_start_year,sales_username,created_at,reseller_testimonials(id,file_path,external_url,description,evidence_date,created_at),reseller_pricelists(id,file_path,external_url,created_at))").eq("id", id).eq("role", "reseller").single();
   if (!reseller) notFound();
 
   const detail = Array.isArray(reseller.reseller_details) ? reseller.reseller_details[0] : reseller.reseller_details;
   const testimonials = ((detail as any)?.reseller_testimonials ?? []) as Evidence[];
   const pricelists = ((detail as any)?.reseller_pricelists ?? []) as Pricelist[];
-  const paths = [...testimonials.map((item) => item.file_path).filter((path): path is string => Boolean(path)), ...pricelists.map((item) => item.file_path)];
+  const paths = [...testimonials.map((item) => item.file_path).filter((path): path is string => Boolean(path)), ...pricelists.map((item) => item.file_path).filter((path): path is string => Boolean(path))];
   const signedUrls = new Map<string, string>();
   let evidenceError = false;
   if (paths.length) {
@@ -39,7 +39,7 @@ export default async function ResellerDetail({ params, searchParams }: { params:
         <section className="card p-6"><h2 className="display text-2xl">Informasi reseller</h2><dl className="mt-5 grid gap-4 sm:grid-cols-2"><Info icon={<UserRound />} label="Nama lengkap" value={reseller.full_name} /><Info icon={<Mail />} label="Email" value={reseller.email ?? "-"} /><Info icon={<MessageCircle />} label="WhatsApp" value={reseller.phone ?? "-"} /><Info icon={<ShieldCheck />} label="Status akun" value={reseller.is_active ? "Aktif" : "Nonaktif"} /></dl></section>
         <section className="card p-6"><h2 className="display text-2xl">Data BA</h2>{detail ? <dl className="mt-5 grid gap-4 sm:grid-cols-2"><Info icon={<UserRound />} label="Nama BA" value={(detail as any).ba_name} /><Info icon={<CalendarDays />} label="Awal BA" value={String((detail as any).ba_start_year)} /><Info icon={<Instagram />} label="Username jualan" value={(detail as any).sales_username} /><Info icon={<CalendarDays />} label="Data dilengkapi" value={formatDate((detail as any).created_at)} /></dl> : <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Data BA belum lengkap.</p>}</section>
         <EvidenceSection title="Bukti testimoni" description="Bukti testimoni yang diunggah saat pendaftaran." items={testimonials.map((item, index) => ({ id: item.id, label: `Testimoni ${index + 1}`, date: item.evidence_date || item.created_at, url: item.file_path ? signedUrls.get(item.file_path) : item.external_url }))} />
-        <EvidenceSection title="Screenshot pricelist" description="Bukti bahwa reseller tidak melakukan underprice." items={pricelists.map((item, index) => ({ id: item.id, label: `Pricelist ${index + 1}`, date: item.created_at, url: signedUrls.get(item.file_path) }))} />
+        <EvidenceSection title="Link pricelist" description="Bukti bahwa reseller tidak melakukan underprice." items={pricelists.map((item, index) => ({ id: item.id, label: `Pricelist ${index + 1}`, date: item.created_at, url: item.external_url || (item.file_path ? signedUrls.get(item.file_path) : undefined) }))} />
       </div>
       <aside className="space-y-5"><section className="card p-5"><h2 className="font-bold">Tindakan akun</h2><p className="mt-2 text-xs leading-5 text-gray-500">Menonaktifkan akun akan menghentikan akses reseller ke dashboard.</p><form action={toggleReseller} className="mt-4"><input type="hidden" name="id" value={reseller.id} /><input type="hidden" name="active" value={String(reseller.is_active)} /><input type="hidden" name="return_to" value={`/admin/resellers/${reseller.id}`} /><SubmitButton className={`w-full rounded-full px-4 py-3 text-sm font-bold ${reseller.is_active ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`} pendingText="Memproses status...">{reseller.is_active ? "Nonaktifkan reseller" : "Aktifkan reseller"}</SubmitButton></form></section><FormAlert type="info">Tautan bukti bersifat privat dan hanya aktif selama 15 menit. Muat ulang halaman untuk membuat tautan baru.</FormAlert></aside>
     </div>
