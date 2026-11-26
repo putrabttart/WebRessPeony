@@ -7,7 +7,7 @@ import { formatRupiah } from "@/lib/utils";
 import { ProductPlanEditor } from "@/components/admin/product-plan-editor";
 import { deleteProduct, saveProduct } from "../actions";
 
-const errors: Record<string, string> = { invalid: "Data produk belum lengkap atau format slug tidak valid.", image: "Gunakan gambar JPG, PNG, atau WebP maksimal 5 MB.", upload: "Gambar produk gagal diunggah.", save: "Produk gagal disimpan. Pastikan slug belum digunakan.", delete: "Produk gagal dihapus.", "plan-invalid": "Data plan belum lengkap. Nama dan deskripsi minimal 2 karakter, serta harga tidak boleh negatif.", "plan-save": "Plan gagal disimpan. Silakan coba kembali.", "plan-schema": "Tabel plan belum tersedia. Jalankan migration 202611250005 di Supabase terlebih dahulu." };
+const errors: Record<string, string> = { invalid: "Data produk belum lengkap atau format slug tidak valid.", image: "Gunakan gambar JPG, PNG, atau WebP maksimal 5 MB.", upload: "Gambar produk gagal diunggah.", save: "Produk gagal disimpan. Pastikan slug belum digunakan.", delete: "Produk gagal dihapus.", "product-rpc": "Optimasi produk belum dipasang. Jalankan migration 202611250008 di Supabase.", "plan-invalid": "Data plan belum lengkap. Nama dan deskripsi minimal 2 karakter, serta harga tidak boleh negatif.", "plan-save": "Plan gagal disimpan. Silakan coba kembali.", "plan-schema": "RPC plan belum tersedia. Jalankan migration 202611250005 dan 202611250008 di Supabase." };
 
 export default async function Products({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string }> }) {
   const params = await searchParams; const { supabase } = await requireUser("admin");

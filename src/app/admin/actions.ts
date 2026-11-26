@@ -43,7 +43,8 @@ export async function toggleReseller(_previousState: ResellerStatusState, form: 
 export async function saveProduct(form: FormData) {
   const data = z.object({ id: z.string().uuid().optional().or(z.literal("")), name: z.string().trim().min(2).max(120), slug: z.string().regex(/^[a-z0-9-]+$/), reseller_price: z.coerce.number().nonnegative(), description: z.string().trim().max(3000).optional(), category_id: z.string().uuid().optional().or(z.literal("")), sort_order: z.coerce.number().int().min(0).max(9999) }).safeParse(Object.fromEntries(form));
   if (!data.success) redirect("/admin/products?error=invalid");
-  const { supabase, profile } = await requireUser("admin");
+  const supabase = await createClient();
+  if (!supabase) redirect("/admin/products?error=save");
   const image = form.get("image");
   let imagePath = optionalText(form.get("existing_image"));
   if (image instanceof File && image.size > 0) {
@@ -54,15 +55,18 @@ export async function saveProduct(form: FormData) {
     if (uploadError) redirect("/admin/products?error=upload");
     imagePath = newPath;
   }
-  const payload = { name: data.data.name, slug: data.data.slug, reseller_price: data.data.reseller_price, description: data.data.description || null, category_id: data.data.category_id || null, sort_order: data.data.sort_order, is_active: form.get("is_active") === "on", image_path: imagePath };
-  const result = data.data.id ? await supabase.from("products").update(payload).eq("id", data.data.id).select("id").single() : await supabase.from("products").insert(payload).select("id").single();
-  const product = result.data; const error = result.error;
+  const { data: productId, error } = await supabase.rpc("save_product_with_log", {
+    p_id: data.data.id || null,
+    p_name: data.data.name,
+    p_slug: data.data.slug,
+    p_category_id: data.data.category_id || null,
+    p_image_path: imagePath,
+    p_sort_order: data.data.sort_order,
+    p_is_active: form.get("is_active") === "on",
+  });
   if (error && imagePath && imagePath !== form.get("existing_image")) await supabase.storage.from("public-assets").remove([imagePath]);
-  if (error || !product) redirect("/admin/products?error=save");
+  if (error || !productId) redirect(error?.code === "PGRST202" || error?.message.includes("save_product_with_log") ? "/admin/products?error=product-rpc" : "/admin/products?error=save");
   if (data.data.id && imagePath !== form.get("existing_image") && form.get("existing_image")) await supabase.storage.from("public-assets").remove([String(form.get("existing_image"))]);
-  await log(supabase, profile.id, data.data.id ? "update" : "create", "product", product.id);
-  revalidatePath("/admin/products");
-  revalidatePath("/dashboard/pricelist"); revalidatePath(`/dashboard/pricelist/${data.data.slug}`);
   redirect(`/admin/products?saved=${data.data.id ? "updated" : "created"}`);
 }
 
@@ -84,22 +88,10 @@ export async function saveProductPlans(form: FormData) {
   try { rawPlans = JSON.parse(String(form.get("plans") ?? "[]")); } catch { redirect("/admin/products?error=plan-invalid"); }
   const plans = z.array(z.object({ id: z.string().uuid().nullable(), name: z.string().trim().min(2).max(100), description: z.string().trim().min(2).max(3000), reseller_price: z.coerce.number().nonnegative(), sort_order: z.coerce.number().int().min(0).max(9999), is_active: z.boolean() })).max(50).safeParse(rawPlans);
   if (!productId.success || !plans.success) redirect("/admin/products?error=plan-invalid");
-  const { supabase, profile } = await requireUser("admin");
-  const { data: current, error: readError } = await supabase.from("product_plans").select("id").eq("product_id", productId.data);
-  if (readError) redirect("/admin/products?error=plan-schema");
-  const retainedIds = plans.data.flatMap((plan) => plan.id ? [plan.id] : []);
-  const removedIds = (current ?? []).map((plan) => plan.id).filter((id) => !retainedIds.includes(id));
-  if (removedIds.length) {
-    const { error } = await supabase.from("product_plans").delete().in("id", removedIds).eq("product_id", productId.data);
-    if (error) redirect("/admin/products?error=plan-save");
-  }
-  for (const plan of plans.data) {
-    const payload = { product_id: productId.data, name: plan.name, description: plan.description, reseller_price: plan.reseller_price, sort_order: plan.sort_order, is_active: plan.is_active };
-    const result = plan.id ? await supabase.from("product_plans").update(payload).eq("id", plan.id).eq("product_id", productId.data) : await supabase.from("product_plans").insert(payload);
-    if (result.error) redirect("/admin/products?error=plan-save");
-  }
-  await log(supabase, profile.id, "sync", "product_plans", productId.data);
-  revalidatePath("/admin/products"); revalidatePath("/dashboard/pricelist");
+  const supabase = await createClient();
+  if (!supabase) redirect("/admin/products?error=plan-save");
+  const { error } = await supabase.rpc("sync_product_plans", { p_product_id: productId.data, p_plans: plans.data });
+  if (error) redirect(error.code === "PGRST202" || error.message.includes("sync_product_plans") ? "/admin/products?error=plan-schema" : "/admin/products?error=plan-save");
   redirect("/admin/products?saved=plans-saved");
 }
 
