@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import peonyLogo from "../../../logo_peony.jpg";
 
 export type SidebarItem = readonly [href: string, label: string, icon: LucideIcon];
 
@@ -25,4 +27,4 @@ export function ResponsiveSidebar({ items, homeHref, dark = false, open, collaps
 }
 
 function Logo({ dark }: { dark: boolean }) { return <span className="inline-flex items-center gap-3"><LogoMark /><span><strong className={`display block text-xl tracking-[.22em] ${dark ? "text-white" : "text-[#28131e]"}`}>PEONY</strong><small className="block text-[8px] tracking-[.27em] text-pink-400">TOGETHER · GROW · MORE</small></span></span>; }
-function LogoMark() { return <span className="grid size-10 place-items-center rounded-full bg-gradient-to-br from-amber-200 via-pink-400 to-fuchsia-800 text-xl text-white shadow-[0_0_24px_rgba(255,80,145,.35)]">P</span>; }
+function LogoMark() { return <span className="relative size-10 overflow-hidden rounded-full border border-pink-200/30 shadow-[0_0_24px_rgba(255,80,145,.35)]"><Image src={peonyLogo} alt="Logo Peony" fill sizes="40px" className="object-cover" /></span>; }

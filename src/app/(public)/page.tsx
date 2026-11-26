@@ -1,9 +1,11 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Instagram, LogIn, MessageCircle } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { HomeMenuList, type HomeMenu } from "@/components/public/home-menu";
 import { createPublicClient } from "@/lib/supabase/public";
 import { safeTarget } from "@/lib/utils";
+import peonyLogo from "../../../logo_peony.jpg";
 
 const fallbackMenus: HomeMenu[] = [
   { id: "register", title: "Daftar / Join Ress", description: "Bergabung dan tumbuh bersama Peony", icon: "user", action_type: "internal", target_url: "/register" },
@@ -38,7 +40,7 @@ export default async function HomePage() {
     <section className="relative mx-auto flex min-h-screen max-w-4xl flex-col items-center py-8">
       <header className="flex w-full items-center justify-between gap-3"><Brand dark name={siteName.toUpperCase()} tagline={tagline} /><div className="flex items-center gap-2"><span className="hidden rounded-full border border-pink-300/20 px-3 py-1.5 text-[10px] tracking-[.2em] text-pink-200 sm:inline-flex">EST. WITH CARE</span><Link href="/login" className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-xs font-bold text-[#28131e] shadow-[0_8px_28px_rgba(255,79,145,.16)] transition hover:-translate-y-0.5 hover:bg-pink-50"><LogIn size={15} /> Login</Link></div></header>
       <div className="relative mb-7 mt-10 text-center sm:mt-14">
-        <div className="bloom mx-auto mb-6 grid size-28 place-items-center rounded-full bg-[radial-gradient(circle_at_40%_35%,#ffd0d9,#ee4c91_42%,#5e173d_75%,transparent_76%)] shadow-[0_0_70px_rgba(244,60,136,.32)]"><span className="display text-5xl italic text-white/90">{siteName.charAt(0).toUpperCase()}</span></div>
+        <div className="bloom relative mx-auto mb-6 size-32 overflow-hidden rounded-full border-2 border-pink-300/30 shadow-[0_0_70px_rgba(244,60,136,.32)]"><Image src={peonyLogo} alt={`Logo ${siteName}`} fill sizes="128px" className="object-cover" priority /></div>
         <p className="mb-3 text-[10px] uppercase tracking-[.52em] text-[#d9a4b9]">{siteName} reseller space</p>
         <h1 className="display text-4xl leading-tight sm:text-6xl">{settings.hero_title || "Grow beautifully,"}<br/><em className="text-gradient font-normal">{settings.hero_emphasis || "together."}</em></h1>
         <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#ab9aa2]">{settings.hero_description || "Semua yang reseller butuhkan dalam satu ruang yang tertata, aman, dan penuh perhatian."}</p>
