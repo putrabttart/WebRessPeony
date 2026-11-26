@@ -12,7 +12,7 @@ export default async function Warranties({ searchParams }: { searchParams: Promi
   const { supabase } = await requireUser("admin");
   const page = Math.max(1, Number(params.page) || 1);
   const pageSize = 20;
-  let query = supabase.from("warranty_claims").select("id,claim_code,application,status,problem_description,order_date,report_date,account_email,account_duration_value,account_duration_unit,expires_at,remaining_duration_value,remaining_duration_unit,profiles(full_name,phone),warranty_responses(id,response,handled_by_name,old_status,new_status,created_at),warranty_attachments(id,file_path,file_name,mime_type,created_at)", { count: "exact" }).order("created_at", { ascending: false });
+  let query = supabase.from("warranty_claims").select("id,claim_code,application,status,problem_description,order_date,report_date,account_email,account_duration_value,account_duration_unit,expires_at,remaining_duration_value,remaining_duration_unit,profiles(full_name,phone),warranty_responses(id,response,handled_by_name,old_status,new_status,created_at),warranty_attachments(id,file_path,file_name,mime_type,created_at)", { count: "exact" }).order("status_sort_order", { ascending: true }).order("created_at", { ascending: false });
   if (params.status && filters.some(([value]) => value === params.status)) query = query.eq("status", params.status);
   if (params.q) query = query.or(`claim_code.ilike.%${params.q}%,application.ilike.%${params.q}%,account_email.ilike.%${params.q}%`);
   const { data, error, count } = await query.range((page - 1) * pageSize, page * pageSize - 1);

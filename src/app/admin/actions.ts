@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 
 async function log(supabase: any, actor: string, action: string, type: string, id?: string, metadata?: Record<string, string | number | boolean | null>) {
   await supabase.from("admin_activity_logs").insert({ actor_id: actor, action, entity_type: type, entity_id: id, metadata: metadata ?? null });
@@ -135,38 +136,25 @@ export async function updateWarranty(previousState: WarrantyActionState, form: F
   if (!parsed.success) return { success: false, message: "Data tidak valid. Periksa status dan panjang tanggapan." };
 
   const data = parsed.data;
-  const { supabase, profile } = await requireUser("admin");
-  const { data: claim, error: claimError } = await supabase.from("warranty_claims").select("status").eq("id", data.id).single();
-  if (claimError || !claim) return { success: false, message: "Laporan tidak ditemukan atau tidak dapat diakses." };
-  if (claim.status === data.status && !data.response) return { success: false, message: "Pilih status baru atau tulis tanggapan sebelum menyimpan." };
-
-  const savedAt = new Date().toISOString();
-  const { error: updateError } = await supabase.from("warranty_claims").update({ status: data.status }).eq("id", data.id);
-  if (updateError) return { success: false, message: "Status gagal diperbarui. Silakan coba kembali." };
-
-  const { error: responseError } = await supabase.from("warranty_responses").insert({
-    claim_id: data.id,
-    admin_id: profile.id,
-    handled_by_name: data.handled_by_name,
-    response: data.response || null,
-    old_status: claim.status,
-    new_status: data.status,
+  const supabase = await createClient();
+  if (!supabase) return { success: false, message: "Layanan database belum dikonfigurasi." };
+  const { data: result, error } = await supabase.rpc("process_warranty_claim", {
+    p_claim_id: data.id,
+    p_status: data.status,
+    p_response: data.response || "",
+    p_handled_by_name: data.handled_by_name,
+    p_claim_code: data.claim_code,
+    p_reseller_name: data.reseller_name,
   });
-  if (responseError) {
-    await supabase.from("warranty_claims").update({ status: claim.status }).eq("id", data.id);
-    return { success: false, message: "Tanggapan gagal dicatat. Status dikembalikan agar riwayat tetap konsisten." };
+  if (error) {
+    const message = error.message.includes("No warranty changes")
+      ? "Pilih status baru atau tulis tanggapan sebelum menyimpan."
+      : error.message.includes("function public.process_warranty_claim")
+        ? "Optimasi database belum dipasang. Jalankan migration 202611250006."
+        : "Status dan tanggapan gagal disimpan. Silakan coba kembali.";
+    return { success: false, message };
   }
-
-  await log(supabase, profile.id, "update_status", "warranty_claim", data.id, {
-    handled_by_name: data.handled_by_name,
-    claim_code: data.claim_code,
-    reseller_name: data.reseller_name,
-    old_status: claim.status,
-    new_status: data.status,
-  });
-  revalidatePath("/admin/warranties");
-  revalidatePath(`/dashboard/garansi/${data.id}`);
-  revalidatePath("/dashboard/riwayat-garansi");
+  const savedAt = String((result as { saved_at?: string } | null)?.saved_at ?? new Date().toISOString());
 
   const labels: Record<string, string> = { reviewing: "Diperiksa", processing: "On Proses", rejected: "Ditolak", completed: "Selesai" };
   const phone = (data.reseller_phone ?? "").replace(/\D/g, "").replace(/^0/, "62").replace(/^620/, "62");
