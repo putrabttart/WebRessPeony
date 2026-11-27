@@ -41,20 +41,12 @@ export async function toggleReseller(_previousState: ResellerStatusState, form: 
 }
 
 export async function saveProduct(form: FormData) {
-  const data = z.object({ id: z.string().uuid().optional().or(z.literal("")), name: z.string().trim().min(2).max(120), slug: z.string().regex(/^[a-z0-9-]+$/), reseller_price: z.coerce.number().nonnegative(), description: z.string().trim().max(3000).optional(), category_id: z.string().uuid().optional().or(z.literal("")), sort_order: z.coerce.number().int().min(0).max(9999) }).safeParse(Object.fromEntries(form));
+  const data = z.object({ id: z.string().uuid().optional().or(z.literal("")), name: z.string().trim().min(2).max(120), slug: z.string().regex(/^[a-z0-9-]+$/), reseller_price: z.coerce.number().nonnegative(), description: z.string().trim().max(3000).optional(), category_id: z.string().uuid().optional().or(z.literal("")), sort_order: z.coerce.number().int().min(0).max(9999), image_url: z.string().trim().optional() }).safeParse(Object.fromEntries(form));
   if (!data.success) redirect("/admin/products?error=invalid");
+  const imagePath = data.data.image_url || null;
+  if (imagePath && !validTarget(imagePath, false)) redirect("/admin/products?error=image-url");
   const supabase = await createClient();
   if (!supabase) redirect("/admin/products?error=save");
-  const image = form.get("image");
-  let imagePath = optionalText(form.get("existing_image"));
-  if (image instanceof File && image.size > 0) {
-    if (image.size > 5 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(image.type)) redirect("/admin/products?error=image");
-    const extension = image.type === "image/jpeg" ? "jpg" : image.type.split("/")[1];
-    const newPath = `products/${crypto.randomUUID()}.${extension}`;
-    const { error: uploadError } = await supabase.storage.from("public-assets").upload(newPath, image, { contentType: image.type });
-    if (uploadError) redirect("/admin/products?error=upload");
-    imagePath = newPath;
-  }
   const { data: productId, error } = await supabase.rpc("save_product_with_log", {
     p_id: data.data.id || null,
     p_name: data.data.name,
@@ -64,9 +56,7 @@ export async function saveProduct(form: FormData) {
     p_sort_order: data.data.sort_order,
     p_is_active: form.get("is_active") === "on",
   });
-  if (error && imagePath && imagePath !== form.get("existing_image")) await supabase.storage.from("public-assets").remove([imagePath]);
   if (error || !productId) redirect(error?.code === "PGRST202" || error?.message.includes("save_product_with_log") ? "/admin/products?error=product-rpc" : "/admin/products?error=save");
-  if (data.data.id && imagePath !== form.get("existing_image") && form.get("existing_image")) await supabase.storage.from("public-assets").remove([String(form.get("existing_image"))]);
   redirect(`/admin/products?saved=${data.data.id ? "updated" : "created"}`);
 }
 
@@ -76,7 +66,7 @@ export async function deleteProduct(form: FormData) {
   const { data } = await supabase.from("products").select("image_path").eq("id", id).single();
   const { error } = await supabase.from("products").delete().eq("id", id);
   if (error) redirect("/admin/products?error=delete");
-  if (data?.image_path) await supabase.storage.from("public-assets").remove([data.image_path]);
+  if (data?.image_path && !/^https?:\/\//i.test(data.image_path)) await supabase.storage.from("public-assets").remove([data.image_path]);
   await log(supabase, profile.id, "delete", "product", id);
   revalidatePath("/admin/products"); revalidatePath("/dashboard/pricelist");
   redirect("/admin/products?saved=deleted");
